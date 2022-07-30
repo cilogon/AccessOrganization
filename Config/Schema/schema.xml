@@ -1,0 +1,35 @@
+<?xml version="1.0" ?>
+<!--
+  While this schema mostly works with database prefixes, foreign key constraints
+  must be specified in raw SQL, which needs the prefixed table name.
+-->
+<schema version="0.3">
+  <table name="access_organizations">
+    <field name="id" type="I">
+      <key />
+      <autoincrement />
+    </field>
+    <field name="co_id" type="I">
+      <notnull />
+      <constraint>REFERENCES cm_cos(id)</constraint>
+    </field>
+    <field name="organization_id" type="I" />
+    <field name="name" type="C" size="256" />
+    <field name="status" type="C" size="2" />
+    <field name="created" type="T" />
+    <field name="modified" type="T" />
+    <field name="access_organization_id" type="I">
+        <constraint>REFERENCES cm_access_organizations(id)</constraint>
+    </field>
+    <field name="revision" type="I" />
+    <field name="deleted" type="L" />
+    <field name="actor_identifier" type="C" size="256" />
+    
+    <index name="access_organizations_i1">
+      <col>name</col>
+    </index>
+    <index name="access_organizations_i2">
+      <col>organization_id</col>
+    </index>
+  </table>
+</schema>
