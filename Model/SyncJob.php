@@ -103,6 +103,14 @@ class SyncJob extends CoJobBackend {
         break;
       }
 
+      // Skip organizations that are not reconciled.
+      if(!empty($o['is_reconciled'])) {
+        $reconciled = $o['is_reconciled'];
+        if(!$reconciled) {
+          continue;
+        }
+      }
+
       $organizationId = $o['organization_id'];
 
       $args = array();
