@@ -12,7 +12,7 @@ class AccessOrganizationsController extends StandardController {
   function beforeFilter() {
     parent::beforeFilter();
 
-    $this->Auth->allow('reply');
+    $this->Auth->allow('find');
   }
 
   public function find() {
