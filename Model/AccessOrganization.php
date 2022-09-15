@@ -54,4 +54,42 @@ class AccessOrganization extends AppModel {
 
     return $availableJobs;
   }
+
+  public function search($coId, $q, $limit) {
+    // Tokenize $q on spaces
+    $tokens = explode(" ", $q);
+
+    $ret = array();
+
+    // We take two loops through, the first time we only do a prefix search
+    // (foo%). If that doesn't reach the search limit, we'll do an infix search
+    // the second time around.
+
+    // While this will return duplicate records, the controller
+    // will filter them while collating results. It will, however, throw off
+    // the limit calculation.
+
+    for($i = 0; $i < 2; $i++) {
+      $args = array();
+
+      foreach($tokens as $t) {
+          $args['conditions']['AND'][] = array(
+            'OR' => array(
+              'LOWER(AccessOrganization.name) LIKE' => ($i == 1 ? '%' : '') . strtolower($t) . '%'
+            )
+          );
+      }
+    }
+
+    $args['conditions']['AccessOrganization.co_id'] = $coId;
+    $args['conditions']['AccessOrganization.status'] = AccessOrganizationStatusEnum::Active;
+
+    $args['order'] = array('AccessOrganization.name');
+    $args['limit'] = $limit;
+    $args['contain'] = false;
+
+    $ret += $this->find('all', $args);
+
+    return $ret;
+  }
 }
