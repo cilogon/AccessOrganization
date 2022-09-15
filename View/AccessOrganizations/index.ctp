@@ -1,7 +1,7 @@
 <?php
   // Add page title
   $params = array();
-  $params['title'] = "Access Organizations";
+  $params['title'] = "ACCESS Organizations";
 
   print $this->element("pageTitleAndButtons", $params);
 ?> 
@@ -53,11 +53,11 @@
 </script>
 
 <p>
-Type in the box below to find an Access Organization and click COPY to copy to your clipboard.
+Type in the box below to find an ACCESS Organization and click COPY to copy to your clipboard.
 </p>
 
 <div id="organization-choose-search-container">
-  <label for="organization-choose" class="col-form-label-sm">Access Organization: </label>
+  <label for="organization-choose" class="col-form-label-sm">ACCESS Organization: </label>
   <span class="co-loading-mini-input-container">
     <input id="organization-choose" type="text" class="form-control-sm" placeholder="enter organization name" />
     <span class="co-loading-mini"><span></span><span></span><span></span></span>
