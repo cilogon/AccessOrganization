@@ -21,7 +21,9 @@
         $("#organization-choose-search-container .co-loading-mini").show();
       },
       focus: function (event, ui) {
+        event.preventDefault();
         $("#organization-choose-search-container .co-loading-mini").hide();
+        $("#organization-choose").val(ui.item.label);
       },
       close: function (event, ui) {
         $("#organization-choose-search-container .co-loading-mini").hide();
