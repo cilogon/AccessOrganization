@@ -51,6 +51,7 @@ class AccessOrganization extends AppModel {
     $availableJobs = array();
 
     $availableJobs['Sync'] = "Synchronize ACCESS Organizations with the ACCESS User Database";
+    $availableJobs['Merge'] = "Merge ACCESS Organizations with similar names";
 
     return $availableJobs;
   }
