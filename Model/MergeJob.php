@@ -38,13 +38,10 @@ class MergeJob extends CoJobBackend {
     $mergeFilePath = $params['csv'] ?? null;
 
     if(!empty($mergeFilePath)) {
-      $mergedCount = $this->mergeByCsvFile($mergeFilePath);
+      list($status, $summary) = $this->mergeByCsvFile($mergeFilePath);
     } else {
-      $mergedCount = $this->mergeByQuery();
+      list($status, $summary) = $this->mergeByQuery();
     }
-
-    $summary = "Merged $mergedCount ACCESS Organizations";
-    $status = JobStatusEnum::Complete;
 
     $CoJob->finish($CoJob->id, $summary, $status);
   }
@@ -53,7 +50,7 @@ class MergeJob extends CoJobBackend {
    * Merge ACCESS Organizations using input from CSV file.
    *
    * @param str $mergeFilePath Full path to the CSV file containing merge data
-   * @return int count of merged organizations
+   * @return array Array of status and summary to be passed to finish method
    */
   protected function mergeByCsvFile($mergeFilePath) {
     $mergeCsvFile = fopen($mergeFilePath, "r");
@@ -83,14 +80,21 @@ class MergeJob extends CoJobBackend {
       $mergedCount += $this->mergeOrganizations($m);
     }
 
-    return $mergedCount;
+    $status = JobStatusEnum::Complete;
+    $summary = "Merged $mergedCount ACCESS Organizations";
+
+    return array($status, $summary);
   }
 
   /**
-   * TODO
+   * Merge ACCESS Organizations using merged_organizations API endpoint.
+   *
+   * @return array Array of status and summary to be passed to finish method
    *
    */
   protected function mergeByQuery() {
+    $CoJob = $this->CoJob;
+
     // Pull the ACCESS User Database using the configured HttpServer ID
     $httpServerId = Configure::read('AccessOrganization.db.HttpServer.id');
 
@@ -102,7 +106,7 @@ class MergeJob extends CoJobBackend {
 
     // Configure curl libraries to query ACCESS Database API.
     $urlBase = $httpServer['HttpServer']['serverurl'];
-    $url = $urlBase . '/organizations';
+    $url = $urlBase . '/merged_organizations';
     $ch = curl_init($url);
     curl_setopt($ch, CURLOPT_URL, $url);
 
@@ -122,122 +126,39 @@ class MergeJob extends CoJobBackend {
     curl_close($ch);
 
     if($response === false) {
-      $summary = "Unable to query ACCESS User Database organizations endpoint";
       $status = JobStatusEnum::Failed;
+      $summary = "Unable to query ACCESS User Database merged_organizations endpoint";
 
-      $CoJob->finish($CoJob->id, $summary, $status);
-      return;
+      return array($status, $summary);
     }
 
     if($curlReturnCode != 200) {
-      $summary = "Query to ACCESS User Database organizations endpoint returned code $curlReturnCode";
       $status = JobStatusEnum::Failed;
+      $summary = "Query to ACCESS User Database merged_organizations endpoint returned code $curlReturnCode";
 
-      $CoJob->finish($CoJob->id, $summary, $status);
-      return;
+      return array($status, $summary);
     }
 
     // Convert JSON.
     try {
-      $organizationList = json_decode($response, true, 512, JSON_THROW_ON_ERROR);
+      $mergeObjects = json_decode($response, true, 512, JSON_THROW_ON_ERROR);
     } catch (Exception $e) {
+      $status = JobStatusEnum::Failed;
       $summary = "Error decoding JSON returned from ACCESS User Database: " . $e->getMessage();
 
-      $status = JobStatusEnum::Failed;
-
-      $CoJob->finish($CoJob->id, $summary, $status);
-      return;
+      return array($status, $summary);
     }
 
-    $totalOrganizationCount = count($organizationList);
-
-    // Loop over returned organizations and make sure they exist
-    // in the database.
-    $synchronizedCount = 0;
-    foreach ($organizationList as $o) {
-      if($this->CoJob->canceled($this->CoJob->id)) {
-        break;
-      }
-
-      // Skip organizations that are not reconciled.
-      if(!empty($o['is_reconciled'])) {
-        $reconciled = $o['is_reconciled'];
-        if(!$reconciled) {
-          continue;
-        }
-      }
-
-      $organizationId = $o['organization_id'];
-
-      $args = array();
-      $args['conditions']['AccessOrganization.organization_id'] = $organizationId;
-      $args['contain'] = false;
-
-      $organization = $this->AccessOrganization->find('first', $args);
-
-      $key = $organizationId;
-
-      if(empty($organization)) {
-        // Create the new organization.
-        $this->AccessOrganization->clear();
-
-        $data = array();
-        $data['organization_id'] = $organizationId;
-        $data['name'] = $o['organization_name'];
-        $data['co_id'] = $this->coId;
-        
-        if($o['is_active']) {
-          $data['status'] = AccessOrganizationStatusEnum::Active;
-        } else {
-          $data['status'] = AccessOrganizationStatusEnum::Inactive;
-        }
-
-
-        if(!$this->AccessOrganization->save($data)) {
-          $comment = 'Error saving ACCESS Organization ' . $data['name'];
-          $status = JobStatusEnum::Failed;
-        } else {
-          $comment = 'Added new ACCESS Organization ' . $data['name'];
-          $status = JobStatusEnum::Complete;
-        }
-
-        $this->CoJob->CoJobHistoryRecord->record($this->CoJob->id, $key, $comment, null, null, $status);
-      } else {
-        // Synchronize status and name.
-        if($o['is_active']) {
-          $status = AccessOrganizationStatusEnum::Active;
-        } else {
-          $status = AccessOrganizationStatusEnum::Inactive;
-        }
-
-        if(($organization['AccessOrganization']['status'] != $status) ||
-           ($organization['AccessOrganization']['name'] != $o['organization_name'])) {
-
-          $this->AccessOrganization->clear();
-
-          $data = array();
-          $data['id'] = $organization['AccessOrganization']['id'];
-          $data['organization_id'] = $organizationId;
-          $data['name'] = $o['organization_name'];
-          $data['status'] = $status;
-          $data['co_id'] = $this->coId;
-
-          if(!$this->AccessOrganization->save($data)) {
-            $comment = 'Error updating ACCESS Organization ' . $data['name'];
-            $status = JobStatusEnum::Failed;
-          } else {
-            $comment = 'Synchronized ACCESS Organization ' . $data['name'];
-            $status = JobStatusEnum::Complete;
-          }
-
-          $this->CoJob->CoJobHistoryRecord->record($this->CoJob->id, $key, $comment, null, null, $status);
-        }
-      }
-
-      $synchronizedCount += 1;
-      $percent = intval(round(($synchronizedCount/$totalOrganizationCount) * 100.0));
-      $this->CoJob->setPercentComplete($this->CoJob->id, $percent);
+    // Loop over and process each merge.
+    $mergedCount = 0;
+    foreach($mergeObjects as $m) {
+      $mergedCount += $this->mergeOrganizations($m);
     }
+
+    $status = JobStatusEnum::Complete;
+    $summary = "Merged $mergedCount ACCESS Organizations";
+
+    return array($status, $summary);
   }
 
   /**
