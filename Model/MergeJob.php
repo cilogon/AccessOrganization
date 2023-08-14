@@ -36,11 +36,12 @@ class MergeJob extends CoJobBackend {
     $this->coId = $coId;
 
     $mergeFilePath = $params['csv'] ?? null;
+    $afterQueryParameter = $params['after'] ?? null;
 
     if(!empty($mergeFilePath)) {
       list($status, $summary) = $this->mergeByCsvFile($mergeFilePath);
     } else {
-      list($status, $summary) = $this->mergeByQuery();
+      list($status, $summary) = $this->mergeByQuery($afterQueryParameter);
     }
 
     $CoJob->finish($CoJob->id, $summary, $status);
@@ -89,10 +90,11 @@ class MergeJob extends CoJobBackend {
   /**
    * Merge ACCESS Organizations using merged_organizations API endpoint.
    *
+   * @param string afterQueryParameter Value for after query parameter in format YYYY-MM-DD
    * @return array Array of status and summary to be passed to finish method
    *
    */
-  protected function mergeByQuery() {
+  protected function mergeByQuery($afterQueryParameter) {
     $CoJob = $this->CoJob;
 
     // Pull the ACCESS User Database using the configured HttpServer ID
@@ -107,6 +109,9 @@ class MergeJob extends CoJobBackend {
     // Configure curl libraries to query ACCESS Database API.
     $urlBase = $httpServer['HttpServer']['serverurl'];
     $url = $urlBase . '/merged_organizations';
+    if(!empty($afterQueryParameter)) {
+      $url= $url. "?after=$afterQueryParameter";
+    }
     $ch = curl_init($url);
     curl_setopt($ch, CURLOPT_URL, $url);
 
@@ -258,7 +263,12 @@ class MergeJob extends CoJobBackend {
 
     $params = array(
       'csv' => array(
-        'help' => _txt("FOO"),
+        'help' => _txt('pl.access_organization.job.merge.help.csv'),
+        'type' => 'string',
+        'required' => false
+      ),
+      'after' => array(
+        'help' => _txt('pl.access_organization.job.merge.help.after'),
         'type' => 'string',
         'required' => false
       )
